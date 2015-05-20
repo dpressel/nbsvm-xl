@@ -431,10 +431,10 @@ public class NBSVM
         @Parameter(description = "Number of epochs", names = {"--epochs", "-epochs"})
         public Integer epochs = 3;
 
-        @Parameter(description = "Buffer size", names = {"--bufsz"})
+        @Parameter(description = "Ring buffer size", names = {"--bufsz"})
         public Integer bufferSz = 16384;
 
-        @Parameter(description = "Number of bits", names = {"--nbits"})
+        @Parameter(description = "Number of bits for feature hashing", names = {"--nbits"})
         public Integer nbits = 24;
 
         @Parameter(description = "N-grams", names = {"--ngrams"})
@@ -442,6 +442,9 @@ public class NBSVM
 
         @Parameter(description = "SVM to Naive bayes interpolation factor (1 means all SVM, 0 all NB)", names = {"--beta"})
         public Double beta = 0.95;
+
+        @Parameter(description = "Control generative feature smoothing", names = {"--alpha"})
+        public Double alpha = 1.0;
 
         @Parameter(description = "Cache dir", names = {"--cache-dir"})
         public String cacheDir = "cache";
@@ -539,7 +542,7 @@ public class NBSVM
             Iterator<Instance> testIterator = new FileIterator(new File(params.eval));
 
             long lexStart = System.currentTimeMillis();
-            nbsvm.buildLexicon(trainingIterator, 1.0);
+            nbsvm.buildLexicon(trainingIterator, params.alpha);
 
             double lexSeconds = (System.currentTimeMillis() - lexStart) / 1000.0;
             System.out.println(String.format("%d words in lexicon, aggregated in %.02fs.  Starting training",
