@@ -174,10 +174,11 @@ public class NBSVM
         return trainingLifecycle.finish();
     }
 
+    // Look up the generative feature
     private void toFeature(Set<Integer> set, List<Offset> offsets, String... str)
     {
 
-        String joined = CollectionsManip.join(str, "_*_"); // This is borrowed from Mesnil's implementation
+        String joined = CollectionsManip.join(str, "_*_"); // This fun delimiter borrowed from Mesnil's implementation
         int idx = hashFeatureEncoder.lookupOrCreate(joined);
 
         if (!set.contains(idx))
@@ -259,7 +260,7 @@ public class NBSVM
 
     }
 
-
+    // When we start a new set, create a new trainer and lifecycle, and create a new cache file
     private void onNewTrainingSet() throws IOException
     {
         if (!cacheDir.exists())
@@ -278,12 +279,12 @@ public class NBSVM
     {
     }
 
-    private static void increment(Map<String, Integer> ftable, String... words)
+    private static void increment(Map<String, Long> ftable, String... words)
     {
         String joined = CollectionsManip.join(words, "_*_");
-        Integer x = CollectionsManip.getOrDefault(ftable, joined, 0);
-        ftable.put(joined, x + 1);
-        ftable.put("N_TOTAL_WORDS", CollectionsManip.getOrDefault(ftable, "N_TOTAL_WORDS", 0) + 1);
+        Long x = CollectionsManip.getOrDefault(ftable, joined, 0L);
+        ftable.put(joined, x + 1L);
+        ftable.put("N_TOTAL_WORDS", CollectionsManip.getOrDefault(ftable, "N_TOTAL_WORDS", 0L) + 1L);
     }
 
 
@@ -342,13 +343,15 @@ public class NBSVM
     {
 
         Map[] ftables = new Map[2];
-        ftables[0] = new HashMap<String, Integer>();
-        ftables[1] = new HashMap<String, Integer>();
+        Map<String, Long> ftable0 = new HashMap<String, Long>();
+        Map<String, Long> ftable1 = new HashMap<String, Long>();
+        ftables[0] = ftable0;
+        ftables[1] = ftable1;
         while (corpus.hasNext())
         {
             Instance instance = corpus.next();
 
-            Map<String, Integer> ftable = ftables[instance.label <= 0 ? 0: 1];
+            Map<String, Long> ftable = ftables[instance.label <= 0 ? 0: 1];
 
             // Up to 4-grams, nobody needs more than that
             String t = null;
@@ -384,14 +387,13 @@ public class NBSVM
             }
         }
         lexicon = new HashMap<String, Double>();
-        Set<String> words = new HashSet<String>(ftables[0].keySet());
+        Set<String> words = new HashSet<String>(ftable0.keySet());
         int uniqueWordsF0 = words.size();
-        Set<String> wordsF1 = ftables[1].keySet();
+        Set<String> wordsF1 = ftable1.keySet();
         int uniqueWordsF1 = wordsF1.size();
         words.addAll(wordsF1);
         wordsProcessed = words.size();
-        Map<String, Integer> ftable0 = ftables[0];
-        Map<String, Integer> ftable1 = ftables[1];
+
 
 
         double numTotalF0 = ftable0.get("N_TOTAL_WORDS") + alpha * uniqueWordsF0;
@@ -399,8 +401,8 @@ public class NBSVM
 
         for (String word : words)
         {
-            double f0 = (CollectionsManip.getOrDefault(ftable0, word, 0) + alpha)/numTotalF0;
-            double f1 = (CollectionsManip.getOrDefault(ftable1, word, 0) + alpha)/numTotalF1;
+            double f0 = (CollectionsManip.getOrDefault(ftable0, word, 0L) + alpha)/numTotalF0;
+            double f1 = (CollectionsManip.getOrDefault(ftable1, word, 0L) + alpha)/numTotalF1;
             lexicon.put(word, Math.log(f1 / f0));
         }
 
