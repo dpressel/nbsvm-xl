@@ -32,7 +32,7 @@ public class NBSVM
     private SGDLearner learner;
     private OverlappedTrainingLifecycle trainingLifecycle;
     private int collisions = 0;
-    private long wordsProcessed = 0;
+    private long hashWordsProcessed = 0;
     private long numPositiveTrainingExamples = 0;
     private long numNegativeTrainingExamples = 0;
     private File cacheDir;
@@ -40,13 +40,14 @@ public class NBSVM
     private int epochs;
     private int bufferSz;
     private double lambda;
-    private Map<String, Double> lexicon;
+    private Map<Integer, Double> lexicon;
     private int ngrams;
     private int nbits;
     private double eta0;
     private double beta;
 
     private HashFeatureEncoder hashFeatureEncoder;
+    private int nTotalKey;
     private static final Logger log = LoggerFactory.getLogger(NBSVM.class);
 
     public int getCollisions()
@@ -90,6 +91,8 @@ public class NBSVM
     {
         this.nbits = nbits;
         this.hashFeatureEncoder = new HashFeatureEncoder(nbits);
+        this.nTotalKey = hashFeatureEncoder.lookupOrCreate("N_TOTAL_WORDS");
+
     }
 
     public void setEta0(double eta0)
@@ -100,9 +103,9 @@ public class NBSVM
     /**
      * Get the number of unique words processed
      */
-    public long getWordsProcessed()
+    public long getHashWordsProcessed()
     {
-        return wordsProcessed;
+        return hashWordsProcessed;
     }
 
     /**
@@ -184,7 +187,7 @@ public class NBSVM
         if (!set.contains(idx))
         {
             set.add(idx);
-            Double v = lexicon.get(joined);
+            Double v = lexicon.get(idx);
             if (v == null)
             {
                 return;
@@ -279,12 +282,13 @@ public class NBSVM
     {
     }
 
-    private static void increment(Map<String, Long> ftable, String... words)
+    private void increment(Map<Integer, Long> ftable, String... words)
     {
         String joined = CollectionsManip.join(words, "_*_");
-        Long x = CollectionsManip.getOrDefault(ftable, joined, 0L);
-        ftable.put(joined, x + 1L);
-        ftable.put("N_TOTAL_WORDS", CollectionsManip.getOrDefault(ftable, "N_TOTAL_WORDS", 0L) + 1L);
+        int idx = hashFeatureEncoder.lookupOrCreate(joined);
+        Long x = CollectionsManip.getOrDefault(ftable, idx, 0L);
+        ftable.put(idx, x + 1L);
+        ftable.put(nTotalKey, CollectionsManip.getOrDefault(ftable, nTotalKey, 0L) + 1L);
     }
 
 
@@ -343,15 +347,15 @@ public class NBSVM
     {
 
         Map[] ftables = new Map[2];
-        Map<String, Long> ftable0 = new HashMap<String, Long>();
-        Map<String, Long> ftable1 = new HashMap<String, Long>();
+        Map<Integer, Long> ftable0 = new HashMap<Integer, Long>();
+        Map<Integer, Long> ftable1 = new HashMap<Integer, Long>();
         ftables[0] = ftable0;
         ftables[1] = ftable1;
         while (corpus.hasNext())
         {
             Instance instance = corpus.next();
 
-            Map<String, Long> ftable = ftables[instance.label <= 0 ? 0: 1];
+            Map<Integer, Long> ftable = ftables[instance.label <= 0 ? 0: 1];
 
             // Up to 4-grams, nobody needs more than that
             String t = null;
@@ -386,20 +390,18 @@ public class NBSVM
                 }
             }
         }
-        lexicon = new HashMap<String, Double>();
-        Set<String> words = new HashSet<String>(ftable0.keySet());
+        lexicon = new HashMap<Integer, Double>();
+        Set<Integer> words = new HashSet<Integer>(ftable0.keySet());
         int uniqueWordsF0 = words.size();
-        Set<String> wordsF1 = ftable1.keySet();
+        Set<Integer> wordsF1 = ftable1.keySet();
         int uniqueWordsF1 = wordsF1.size();
         words.addAll(wordsF1);
-        wordsProcessed = words.size();
+        hashWordsProcessed = words.size();
 
+        double numTotalF0 = ftable0.get(nTotalKey) + alpha * uniqueWordsF0;
+        double numTotalF1 = ftable1.get(nTotalKey) + alpha * uniqueWordsF1;
 
-
-        double numTotalF0 = ftable0.get("N_TOTAL_WORDS") + alpha * uniqueWordsF0;
-        double numTotalF1 = ftable1.get("N_TOTAL_WORDS") + alpha * uniqueWordsF1;
-
-        for (String word : words)
+        for (Integer word : words)
         {
             double f0 = (CollectionsManip.getOrDefault(ftable0, word, 0L) + alpha)/numTotalF0;
             double f1 = (CollectionsManip.getOrDefault(ftable1, word, 0L) + alpha)/numTotalF1;
@@ -548,7 +550,7 @@ public class NBSVM
 
             double lexSeconds = (System.currentTimeMillis() - lexStart) / 1000.0;
             System.out.println(String.format("%d words in lexicon, aggregated in %.02fs.  Starting training",
-                    nbsvm.getWordsProcessed(), lexSeconds));
+                    nbsvm.getHashWordsProcessed(), lexSeconds));
 
             long trainStart = System.currentTimeMillis();
             trainingIterator = new FileIterator(new File(params.train));
