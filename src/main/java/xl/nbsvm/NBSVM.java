@@ -47,7 +47,7 @@ public class NBSVM
     private double beta;
 
     private HashFeatureEncoder hashFeatureEncoder;
-    private int nTotalKey;
+
     private static final Logger log = LoggerFactory.getLogger(NBSVM.class);
 
     public int getCollisions()
@@ -91,8 +91,6 @@ public class NBSVM
     {
         this.nbits = nbits;
         this.hashFeatureEncoder = new HashFeatureEncoder(nbits);
-        this.nTotalKey = hashFeatureEncoder.lookupOrCreate("N_TOTAL_WORDS");
-
     }
 
     public void setEta0(double eta0)
@@ -288,7 +286,6 @@ public class NBSVM
         int idx = hashFeatureEncoder.lookupOrCreate(joined);
         Long x = CollectionsManip.getOrDefault(ftable, idx, 0L);
         ftable.put(idx, x + 1L);
-        ftable.put(nTotalKey, CollectionsManip.getOrDefault(ftable, nTotalKey, 0L) + 1L);
     }
 
 
@@ -351,11 +348,14 @@ public class NBSVM
         Map<Integer, Long> ftable1 = new HashMap<Integer, Long>();
         ftables[0] = ftable0;
         ftables[1] = ftable1;
+        Long[] numTokens = new Long[]{ 0L, 0L };
+
         while (corpus.hasNext())
         {
             Instance instance = corpus.next();
+            int idx = instance.label <= 0 ? 0: 1;
+            Map<Integer, Long> ftable = ftables[idx];
 
-            Map<Integer, Long> ftable = ftables[instance.label <= 0 ? 0: 1];
 
             // Up to 4-grams, nobody needs more than that
             String t = null;
@@ -372,24 +372,28 @@ public class NBSVM
                 t = instance.text.get(i);
                 // unigram
                 increment(ftable, t);
-
+                numTokens[idx]++;
                 // bigram?
                 if (ngrams > 1 && l != null)
                 {
                     // trigram?
                     increment(ftable, l, t);
+                    numTokens[idx]++;
                     if (ngrams > 2 && ll != null)
                     {
                         increment(ftable, ll, l, t);
+                        numTokens[idx]++;
                     }
                     // 4-gram?
                     if (ngrams > 3 && lll != null)
                     {
                         increment(ftable, lll, ll, l, t);
+                        numTokens[idx]++;
                     }
                 }
             }
         }
+
         lexicon = new HashMap<Integer, Double>();
         Set<Integer> words = new HashSet<Integer>(ftable0.keySet());
         int uniqueWordsF0 = words.size();
@@ -398,8 +402,8 @@ public class NBSVM
         words.addAll(wordsF1);
         hashWordsProcessed = words.size();
 
-        double numTotalF0 = ftable0.get(nTotalKey) + alpha * uniqueWordsF0;
-        double numTotalF1 = ftable1.get(nTotalKey) + alpha * uniqueWordsF1;
+        double numTotalF0 = numTokens[0] + alpha * uniqueWordsF0;
+        double numTotalF1 = numTokens[1] + alpha * uniqueWordsF1;
 
         for (Integer word : words)
         {
@@ -413,6 +417,9 @@ public class NBSVM
 
     public static class Params
     {
+
+        @Parameter(description = "Lexicon corpus", names = {"--lex", "-lex"})
+        public String lex;
 
         @Parameter(description = "Training file", names = {"--train", "-t"}, required = true)
         public String train;
@@ -542,18 +549,19 @@ public class NBSVM
             nbsvm.setLoss(params.loss.equals("lr") ? new LogLoss() : new HingeLoss());
 
 
-            Iterator<Instance> trainingIterator = new FileIterator(new File(params.train));
+            Iterator<Instance> lexIterator = new FileIterator(new File(params.lex == null ? params.train: params.lex));
             Iterator<Instance> testIterator = new FileIterator(new File(params.eval));
 
             long lexStart = System.currentTimeMillis();
-            nbsvm.buildLexicon(trainingIterator, params.alpha);
+            nbsvm.buildLexicon(lexIterator, params.alpha);
+
 
             double lexSeconds = (System.currentTimeMillis() - lexStart) / 1000.0;
-            System.out.println(String.format("%d words in lexicon, aggregated in %.02fs.  Starting training",
+            System.out.println(String.format("%d hash words in lexicon, aggregated in %.02fs.  Starting training",
                     nbsvm.getHashWordsProcessed(), lexSeconds));
 
             long trainStart = System.currentTimeMillis();
-            trainingIterator = new FileIterator(new File(params.train));
+            Iterator<Instance> trainingIterator = new FileIterator(new File(params.train));
             Model model = nbsvm.train(trainingIterator);
 
             double trainSeconds = (System.currentTimeMillis() - trainStart) / 1000.0;
