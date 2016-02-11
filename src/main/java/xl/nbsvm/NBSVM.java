@@ -45,6 +45,7 @@ public class NBSVM
     private int nbits;
     private double eta0;
     private double beta;
+    private int charNGramWidth = 0;
 
     private HashFeatureEncoder hashFeatureEncoder;
 
@@ -123,6 +124,16 @@ public class NBSVM
         this.beta = beta;
     }
 
+    public int getCharNGramWidth()
+    {
+        return charNGramWidth;
+    }
+
+    public void setCharNGramWidth(int charNGramWidth)
+    {
+        this.charNGramWidth = charNGramWidth;
+    }
+
     /**
      * Simple view of a single training instance containing only
      * a label and tokenized text
@@ -138,7 +149,7 @@ public class NBSVM
      * lexicon has already been built, as it is required for feature extraction
      * @param corpus An iterator over the corpus data
      */
-    public Model train(Iterator<Instance> corpus) throws IOException
+    public Model train(Iterator<Instance> corpus) throws Exception
     {
 
         while (corpus.hasNext())
@@ -198,6 +209,27 @@ public class NBSVM
         }
     }
 
+    // This really should be working over the whole post right??
+    private void extractCharGrams(Set<Integer> set, List<Offset> offsets, List<String> tokens)
+    {
+        if (charNGramWidth == 0)
+        {
+            return;
+        }
+
+        String t = String.join("+", tokens);
+
+        int sz = t.length();
+
+        for (int i = 2; i < charNGramWidth; ++i)
+        {
+            for (int j = 0; j < sz - i + 1; ++j)
+            {
+                String sub = t.substring(j , j + i);
+                toFeature(set, offsets, sub);
+            }
+        }
+    }
     // instance should be tabulated already so just hash the keys and set the values
     private FeatureVector transform(Instance instance)
     {
@@ -215,6 +247,8 @@ public class NBSVM
         String ll = null;
         String lll;
 
+        extractCharGrams(set, offsets, instance.text);
+
         for (int i = 0, sz = instance.text.size(); i < sz; ++i)
         {
             // Circular
@@ -222,6 +256,7 @@ public class NBSVM
             ll = l;
             l = t;
             t = instance.text.get(i);
+
             // unigram
             toFeature(set, offsets, t);
 
@@ -262,7 +297,7 @@ public class NBSVM
     }
 
     // When we start a new set, create a new trainer and lifecycle, and create a new cache file
-    private void onNewTrainingSet() throws IOException
+    private void onNewTrainingSet() throws Exception
     {
         if (!cacheDir.exists())
         {
@@ -270,7 +305,7 @@ public class NBSVM
             cacheDir.mkdirs();
 
         }
-        learner = new SGDLearner(loss, lambda, eta0);
+        learner = new SGDLearner(loss, lambda, eta0, new LinearModelFactory(AdagradLinearModel.class));
         File cacheFile = File.createTempFile("sgd", ".cache", cacheDir);
         trainingLifecycle = new OverlappedTrainingLifecycle(epochs, bufferSz, learner, (int) Math.pow(2, nbits), cacheFile);
     }
@@ -440,7 +475,7 @@ public class NBSVM
         public Double eta0 = 0.5;
 
         @Parameter(description = "Number of epochs", names = {"--epochs", "-epochs"})
-        public Integer epochs = 3;
+        public Integer epochs = 10;
 
         @Parameter(description = "Ring buffer size", names = {"--bufsz"})
         public Integer bufferSz = 16384;
@@ -450,6 +485,9 @@ public class NBSVM
 
         @Parameter(description = "N-grams", names = {"--ngrams"})
         public Integer ngrams = 3;
+
+        @Parameter(description = "Char N-grams", names = {"--cgrams"})
+        public Integer charNgrams = 0;
 
         @Parameter(description = "SVM to Naive bayes interpolation factor (1 means all SVM, 0 all NB)", names = {"--beta"})
         public Double beta = 0.95;
@@ -544,6 +582,7 @@ public class NBSVM
             nbsvm.setLambda(params.lambda);
             nbsvm.setNbits(params.nbits);
             nbsvm.setNgrams(params.ngrams);
+            nbsvm.setCharNGramWidth(params.charNgrams);
             nbsvm.setEta0(params.eta0);
             nbsvm.setBeta(params.beta);
             nbsvm.setLoss(params.loss.equals("lr") ? new LogLoss() : new HingeLoss());
@@ -579,14 +618,14 @@ public class NBSVM
 
             double acc = nbsvm.eval(model, testIterator);
 
-            System.out.println(String.format("Model accuracy %.02f %%", acc));
+            System.out.println(String.format("Model accuracy %.02f %%", acc * 100));
             System.out.println("Total hashing collsions " + nbsvm.getCollisions());
 
 
         }
-        catch (IOException ioEx)
+        catch (Exception ex)
         {
-            ioEx.printStackTrace();
+            ex.printStackTrace();
         }
     }
 }
