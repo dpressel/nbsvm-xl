@@ -230,32 +230,91 @@ public class NBSVM
             }
         }
     }
-    // instance should be tabulated already so just hash the keys and set the values
-    private FeatureVector transform(Instance instance)
+
+    // This really should be working over the whole post right??
+    private void lexCharGrams(List<String> text, Map<Integer, Long> ftable, Long[] numTokens, int labelIdx)
     {
+        if (charNGramWidth == 0)
+        {
+            return;
+        }
 
-        FeatureVector fv = FeatureVector.newSparse(instance.label);
+        String t = String.join("+", text);
 
-        assert (!instance.text.isEmpty());
+        int sz = t.length();
 
-        List<Offset> offsets = new ArrayList<Offset>();
-        Set<Integer> set = new HashSet<Integer>();
+        for (int i = 2; i < charNGramWidth; ++i)
+        {
+            for (int j = 0; j < sz - i + 1; ++j)
+            {
+                String sub = t.substring(j , j + i);
+                increment(ftable, sub);
+                numTokens[labelIdx]++;
+            }
+        }
+    }
 
+    private void lexWordGrams(List<String> text, Map<Integer, Long> ftable, Long[] numTokens, int labelIdx)
+    {
+        if (ngrams == 0)
+        {
+            return;
+        }
         // Up to 4-grams, nobody needs more than that
         String t = null;
         String l = null;
         String ll = null;
         String lll;
 
-        extractCharGrams(set, offsets, instance.text);
-
-        for (int i = 0, sz = instance.text.size(); i < sz; ++i)
+        for (int i = 0, sz = text.size(); i < sz; ++i)
         {
             // Circular
             lll = ll;
             ll = l;
             l = t;
-            t = instance.text.get(i);
+            t = text.get(i);
+            // unigram
+            increment(ftable, t);
+            numTokens[labelIdx]++;
+            // bigram?
+            if (ngrams > 1 && l != null)
+            {
+                // trigram?
+                increment(ftable, l, t);
+                numTokens[labelIdx]++;
+                if (ngrams > 2 && ll != null)
+                {
+                    increment(ftable, ll, l, t);
+                    numTokens[labelIdx]++;
+                }
+                // 4-gram?
+                if (ngrams > 3 && lll != null)
+                {
+                    increment(ftable, lll, ll, l, t);
+                    numTokens[labelIdx]++;
+                }
+            }
+        }
+    }
+    private void extractWordGrams(Set<Integer> set, List<Offset> offsets, List<String> text)
+    {
+        if (ngrams == 0)
+        {
+            return;
+        }
+        // Up to 4-grams, nobody needs more than that
+        String t = null;
+        String l = null;
+        String ll = null;
+        String lll;
+
+        for (int i = 0, sz = text.size(); i < sz; ++i)
+        {
+            // Circular
+            lll = ll;
+            ll = l;
+            l = t;
+            t = text.get(i);
 
             // unigram
             toFeature(set, offsets, t);
@@ -276,6 +335,22 @@ public class NBSVM
                 }
             }
         }
+    }
+    // instance should be tabulated already so just hash the keys and set the values
+    private FeatureVector transform(Instance instance)
+    {
+
+        FeatureVector fv = FeatureVector.newSparse(instance.label);
+
+        assert (!instance.text.isEmpty());
+
+        List<Offset> offsets = new ArrayList<Offset>();
+        Set<Integer> set = new HashSet<Integer>();
+
+
+        extractCharGrams(set, offsets, instance.text);
+
+        extractWordGrams(set, offsets, instance.text);
         Collections.sort(offsets, new Comparator<Offset>()
         {
             @Override
@@ -388,45 +463,11 @@ public class NBSVM
         while (corpus.hasNext())
         {
             Instance instance = corpus.next();
-            int idx = instance.label <= 0 ? 0: 1;
-            Map<Integer, Long> ftable = ftables[idx];
+            int labelIdx = instance.label <= 0 ? 0: 1;
+            Map<Integer, Long> ftable = ftables[labelIdx];
+            lexCharGrams(instance.text, ftable, numTokens, labelIdx);
+            lexWordGrams(instance.text, ftable, numTokens, labelIdx);
 
-
-            // Up to 4-grams, nobody needs more than that
-            String t = null;
-            String l = null;
-            String ll = null;
-            String lll;
-
-            for (int i = 0, sz = instance.text.size(); i < sz; ++i)
-            {
-                // Circular
-                lll = ll;
-                ll = l;
-                l = t;
-                t = instance.text.get(i);
-                // unigram
-                increment(ftable, t);
-                numTokens[idx]++;
-                // bigram?
-                if (ngrams > 1 && l != null)
-                {
-                    // trigram?
-                    increment(ftable, l, t);
-                    numTokens[idx]++;
-                    if (ngrams > 2 && ll != null)
-                    {
-                        increment(ftable, ll, l, t);
-                        numTokens[idx]++;
-                    }
-                    // 4-gram?
-                    if (ngrams > 3 && lll != null)
-                    {
-                        increment(ftable, lll, ll, l, t);
-                        numTokens[idx]++;
-                    }
-                }
-            }
         }
 
         lexicon = new HashMap<Integer, Double>();
@@ -602,6 +643,10 @@ public class NBSVM
             nbsvm.setBeta(params.beta);
             nbsvm.setLoss(params.loss.equals("lr") ? new LogLoss() : new HingeLoss());
 
+            if (params.ngrams == 0 && params.charNgrams == 0)
+            {
+                throw new Exception("Must supply at least one word or char ngram");
+            }
 
             Iterator<Instance> lexIterator = new FileIterator(new File(params.lex == null ? params.train: params.lex));
             Iterator<Instance> testIterator = new FileIterator(new File(params.eval));
