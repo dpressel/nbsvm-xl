@@ -509,6 +509,7 @@ public class NBSVM
 
         BufferedReader reader;
         Instance instance;
+        int lineNumber = 0;
 
         public FileIterator(File file) throws IOException
         {
@@ -528,6 +529,10 @@ public class NBSVM
             return last;
         }
 
+        public int getLineNumber()
+        {
+            return lineNumber;
+        }
         private void advance()
         {
             try
@@ -539,22 +544,32 @@ public class NBSVM
                     instance = null;
                     return;
                 }
+                ++lineNumber;
 
                 instance = new Instance();
                 // This appears to be much faster than
                 final StringTokenizer tokenizer = new StringTokenizer(line, "\t ");
 
-                instance.label = Integer.valueOf(tokenizer.nextToken());
-
-                instance.text = new ArrayList<String>();
-                while (tokenizer.hasMoreTokens())
+                try
                 {
-                    instance.text.add(tokenizer.nextToken());
+                    instance.label = Integer.valueOf(tokenizer.nextToken());
+
+                    instance.text = new ArrayList<String>();
+                    while (tokenizer.hasMoreTokens())
+                    {
+                        instance.text.add(tokenizer.nextToken());
+                    }
+                }
+                catch (NumberFormatException numEx)
+                {
+                    //System.out.println("Bad line: " + lineNumber + ". Skipping...");
+                    advance();
                 }
             }
-            catch (IOException ioEx)
+            catch (Exception ex)
             {
-                throw new RuntimeException(ioEx);
+                System.out.println("Line number: " + lineNumber);
+                throw new RuntimeException(ex);
             }
 
         }
