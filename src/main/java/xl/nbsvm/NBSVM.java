@@ -43,6 +43,7 @@ public class NBSVM
     private Map<Integer, Double> lexicon;
     private int ngrams;
     private int nbits;
+    private String learningMethod;
     private double eta0;
     private double beta;
     private int charNGramWidth = 0;
@@ -76,6 +77,10 @@ public class NBSVM
         this.bufferSz = bufferSz;
     }
 
+    public void setLearningMethod(String method)
+    {
+        this.learningMethod = method;
+    }
 
     public void setLambda(double lambda)
     {
@@ -189,9 +194,8 @@ public class NBSVM
     // Look up the generative feature
     private void toFeature(Set<Integer> set, List<Offset> offsets, String... str)
     {
-
         String joined = CollectionsManip.join(str, "_*_"); // This fun delimiter borrowed from Mesnil's implementation
-        int idx = hashFeatureEncoder.lookupOrCreate(joined);
+        int idx = hashFeatureEncoder.indexOf(joined);
 
         if (!set.contains(idx))
         {
@@ -201,7 +205,7 @@ public class NBSVM
             {
                 return;
             }
-            offsets.add(new Offset(idx, v == null ? 0. : v));
+            offsets.add(new Offset(idx, v));
         }
         else
         {
@@ -380,7 +384,11 @@ public class NBSVM
             cacheDir.mkdirs();
 
         }
-        learner = new SGDLearner(loss, lambda, eta0, new LinearModelFactory(AdagradLinearModel.class));
+        boolean isAdagrad = "adagrad".equals(learningMethod);
+
+        ModelFactory modelFactory = new LinearModelFactory(isAdagrad ? AdagradLinearModel.class : LinearModel.class);
+
+        learner = new SGDLearner(loss, lambda, eta0, modelFactory);
         File cacheFile = File.createTempFile("sgd", ".cache", cacheDir);
         trainingLifecycle = new OverlappedTrainingLifecycle(epochs, bufferSz, learner, (int) Math.pow(2, nbits), cacheFile);
     }
@@ -442,6 +450,7 @@ public class NBSVM
             double fx = classify(model, instance);
             correct += (fx * y <= 0) ? 0 : 1;
         }
+        System.out.println(correct + " / " + total);
         return correct / (double) total;
     }
 
@@ -526,6 +535,9 @@ public class NBSVM
 
         @Parameter(description = "N-grams", names = {"--ngrams"})
         public Integer ngrams = 3;
+
+        @Parameter(description = "Learning method (sgd|adagrad)", names = {"--method"})
+        public String method = "sgd";
 
         @Parameter(description = "Char N-grams", names = {"--cgrams"})
         public Integer charNgrams = 0;
@@ -641,8 +653,8 @@ public class NBSVM
             nbsvm.setCharNGramWidth(params.charNgrams);
             nbsvm.setEta0(params.eta0);
             nbsvm.setBeta(params.beta);
-            nbsvm.setLoss(params.loss.equals("lr") ? new LogLoss() : new HingeLoss());
-
+            nbsvm.setLoss((params.loss.equals("lr") || params.loss.equals("log")) ? new LogLoss() : new HingeLoss());
+            nbsvm.setLearningMethod(params.method);
             if (params.ngrams == 0 && params.charNgrams == 0)
             {
                 throw new Exception("Must supply at least one word or char ngram");
@@ -679,7 +691,7 @@ public class NBSVM
             double acc = nbsvm.eval(model, testIterator);
 
             System.out.println(String.format("Model accuracy %.02f %%", acc * 100));
-            System.out.println("Total hashing collsions " + nbsvm.getCollisions());
+            System.out.println("Total hashing collisions " + nbsvm.getCollisions());
 
 
         }

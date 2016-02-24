@@ -27,7 +27,7 @@ amounts of training data.  The ring buffer size options control how much process
 Training and test data are essentially TSVs with the first column containing -1 (negative) or 1 (positive) label and
 space delimited tokens in the second column.
 
-To build NBSVM, first pull https://github.com/dpressel/sgdtk and do a maven install.  Then run the maven
+To build NBSVM-XL, first pull https://github.com/dpressel/sgdtk and do a maven install.  Then run the maven
 build for this project, which will then find it in your local cache.
 
 You may use this code for commercial or other purposes, but please attribute your work to this implementation if you do.
