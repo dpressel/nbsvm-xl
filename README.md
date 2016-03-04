@@ -22,13 +22,10 @@ using --cgram values > 0.  Smoothing on the generative features is controlled wi
 A whole host of other parameters are available. -- see the usage for an exhaustive list -- everything is tunable.
 Adagrad is currently optional for optimization using --method adagrad
 
-This code depends on my sgdtk Java library for its SVM/LR SGD implementations (https://github.com/dpressel/sgdtk), 
-which also use overlapped File IO and feature hashing.  A key feature is speed of training, even with large
-amounts of training data.  The ring buffer size options control how much processing may be done in-core.
+This code depends on my sgdtk Java library for its SVM/LR SGD implementations (https://github.com/dpressel/sgdtk).  A key feature is speed of training, even with large amounts of training data.  The ring buffer size options control how much processing may be done in-core.
 
 To build nbsvm-xl, first pull https://github.com/dpressel/sgdtk and do a maven install.  Then run the maven
 build for this project, which will then find it in your local cache.
-
 
 Training and test data are essentially TSVs with the first column containing -1 (negative) or 1 (positive) label and
 space delimited tokens in the second column.  On linux its fairly easy to get data that was downloaded using the _oh_my_gosh.sh_ script from https://github.com/mesnilgr
@@ -74,8 +71,6 @@ xl.nbsvm.NBSVM --train /home/dpressel/dev/work/nbsvm_run/data/train-xl.tsv --eva
 Trained model in 18.81s.  25000 training examples seen
 22969 / 25000
 Model accuracy 91.88 %
-Total hashing collisions 7065689
-
 ```
 
 Note in this example NB regularization is turned off altogether since the python code doesnt support that.
