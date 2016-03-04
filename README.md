@@ -17,7 +17,7 @@ https://bitbucket.org/dpressel/presentations/src
 
 Supports generative features as in the paper, as well as NB classification interpolation as described.  You
 can pick whether to use SVM or LR by using the --loss option.  You can control the NB interpolation using --beta
-and the number of N-gram shingles using --ngram.  You can optional add shingled char ngram support (not in the orignal paper)
+and the number of N-gram shingles using --ngram.  You can optionally add shingled char ngram support (not in the orignal paper)
 using --cgram values > 0.  Smoothing on the generative features is controlled with the --alpha parameter.
 A whole host of other parameters are available. -- see the usage for an exhaustive list -- everything is tunable.
 Adagrad is currently optional for optimization using --method adagrad
