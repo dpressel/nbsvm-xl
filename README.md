@@ -13,7 +13,7 @@ On my laptop, this command line program can process a million tweets including t
 with the first epoch taking around 45s, and additional epochs at around 15s.  This is much faster than it can be
 done using liblinear, and due to how it handles IO and feature vectors, it should scale much better as well.  You can find some more information on many of the techniques used for nbsvm-xl used here:
 
-https://bitbucket.org/dpressel/presentations/src
+https://rawgit.com/dpressel/Meetups/master/nlp-meetup-2016-02-25/presentation.html
 
 Supports generative features as in the paper, as well as NB classification interpolation as described.  You
 can pick whether to use SVM or LR by using the --loss option.  You can control the NB interpolation using --beta
