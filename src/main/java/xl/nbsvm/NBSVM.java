@@ -52,6 +52,7 @@ public class NBSVM
 
     private static final Logger log = LoggerFactory.getLogger(NBSVM.class);
 
+
     public int getCollisions()
     {
         return collisions;
@@ -551,6 +552,9 @@ public class NBSVM
         @Parameter(description = "Cache dir", names = {"--cache-dir"})
         public String cacheDir = "cache";
 
+        @Parameter(description = "Minimum sentence length", names = {"--min-sent"})
+        public Integer minSentenceLength = 0;
+
     }
 
     /**
@@ -564,8 +568,11 @@ public class NBSVM
         Instance instance;
         int lineNumber = 0;
 
-        public FileIterator(File file) throws IOException
+        int minSentenceLength;
+
+        public FileIterator(File file, int minSentenceLength) throws IOException
         {
+            this.minSentenceLength = minSentenceLength;
             reader = new BufferedReader(new FileReader(file));
             advance();
         }
@@ -605,12 +612,17 @@ public class NBSVM
 
                 try
                 {
+
                     instance.label = Integer.valueOf(tokenizer.nextToken());
 
                     instance.text = new ArrayList<String>();
                     while (tokenizer.hasMoreTokens())
                     {
                         instance.text.add(tokenizer.nextToken());
+                    }
+                    if (instance.text.size() < minSentenceLength)
+                    {
+                        throw new NumberFormatException("");
                     }
                 }
                 catch (NumberFormatException numEx)
@@ -655,13 +667,14 @@ public class NBSVM
             nbsvm.setBeta(params.beta);
             nbsvm.setLoss((params.loss.equals("lr") || params.loss.equals("log")) ? new LogLoss() : new HingeLoss());
             nbsvm.setLearningMethod(params.method);
+
             if (params.ngrams == 0 && params.charNgrams == 0)
             {
                 throw new Exception("Must supply at least one word or char ngram");
             }
 
-            Iterator<Instance> lexIterator = new FileIterator(new File(params.lex == null ? params.train: params.lex));
-            Iterator<Instance> testIterator = new FileIterator(new File(params.eval));
+            Iterator<Instance> lexIterator = new FileIterator(new File(params.lex == null ? params.train: params.lex), params.minSentenceLength);
+            Iterator<Instance> testIterator = new FileIterator(new File(params.eval), params.minSentenceLength);
 
             long lexStart = System.currentTimeMillis();
             nbsvm.buildLexicon(lexIterator, params.alpha);
@@ -672,7 +685,7 @@ public class NBSVM
                     nbsvm.getHashWordsProcessed(), lexSeconds));
 
             long trainStart = System.currentTimeMillis();
-            Iterator<Instance> trainingIterator = new FileIterator(new File(params.train));
+            Iterator<Instance> trainingIterator = new FileIterator(new File(params.train), params.minSentenceLength);
             Model model = nbsvm.train(trainingIterator);
 
             double trainSeconds = (System.currentTimeMillis() - trainStart) / 1000.0;
