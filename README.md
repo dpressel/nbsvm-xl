@@ -1,6 +1,6 @@
 # nbsvm-xl
 
-NBSVM using SGD for fast processing of larger datasets
+NBSVM using SGD for fast processing of large datasets
 
 ## More info
 Fast, scalable SGD SVM or LR demonstration code for:

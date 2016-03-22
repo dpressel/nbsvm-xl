@@ -2,7 +2,7 @@ package xl.nbsvm;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import org.sgdtk.*;
-import org.sgdtk.exec.OverlappedTrainingLifecycle;
+import org.sgdtk.exec.OverlappedTrainingRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +30,7 @@ import java.util.*;
 public class NBSVM
 {
     private SGDLearner learner;
-    private OverlappedTrainingLifecycle trainingLifecycle;
+    private OverlappedTrainingRunner trainingRunner;
     private int collisions = 0;
     private long hashWordsProcessed = 0;
     private long numPositiveTrainingExamples = 0;
@@ -185,11 +185,11 @@ public class NBSVM
                 continue;
             }
             // Add to training set asynchronously
-            trainingLifecycle.add(fv);
+            trainingRunner.add(fv);
         }
 
         // Wait until training is done
-        return trainingLifecycle.finish();
+        return trainingRunner.finish();
     }
 
     // Look up the generative feature
@@ -391,7 +391,12 @@ public class NBSVM
 
         learner = new SGDLearner(loss, lambda, eta0, modelFactory);
         File cacheFile = File.createTempFile("sgd", ".cache", cacheDir);
-        trainingLifecycle = new OverlappedTrainingLifecycle(epochs, bufferSz, learner, (int) Math.pow(2, nbits), cacheFile);
+        trainingRunner = new OverlappedTrainingRunner(learner);
+        trainingRunner.setEpochs(epochs);
+        trainingRunner.setBufferSz(bufferSz);
+        trainingRunner.setLearnerUserData((int) Math.pow(2, nbits));
+        trainingRunner.setCacheFile(cacheFile);
+        trainingRunner.start();
     }
 
 
