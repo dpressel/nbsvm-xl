@@ -44,6 +44,8 @@ public class NBSVM
     private int ngrams;
     private int nbits;
     private String learningMethod;
+    private boolean useNBFeature;
+    private boolean lowerCase;
     private double eta0;
     private double beta;
     private int charNGramWidth = 0;
@@ -52,6 +54,14 @@ public class NBSVM
 
     private static final Logger log = LoggerFactory.getLogger(NBSVM.class);
 
+    public void setLowerCase(boolean lowerCase)
+    {
+        this.lowerCase = lowerCase;
+    }
+    public void setUseNBFeature(boolean useNBFeature)
+    {
+        this.useNBFeature = useNBFeature;
+    }
 
     public int getCollisions()
     {
@@ -259,6 +269,17 @@ public class NBSVM
         }
     }
 
+
+    private String clean(String tok)
+    {
+        String cleaned = tok.replaceAll("\"", "").replaceAll("'", "").replaceAll("`", "").replaceAll(",", "");
+        if (lowerCase)
+        {
+            cleaned = cleaned.toLowerCase();
+        }
+        return cleaned;
+    }
+
     private void lexWordGrams(List<String> text, Map<Integer, Long> ftable, Long[] numTokens, int labelIdx)
     {
         if (ngrams == 0)
@@ -277,7 +298,10 @@ public class NBSVM
             lll = ll;
             ll = l;
             l = t;
-            t = text.get(i);
+            t = clean(text.get(i));
+            if (t.isEmpty())
+                continue;
+
             // unigram
             increment(ftable, t);
             numTokens[labelIdx]++;
@@ -319,7 +343,9 @@ public class NBSVM
             lll = ll;
             ll = l;
             l = t;
-            t = text.get(i);
+            t = clean(text.get(i));
+            if (t.isEmpty())
+                continue;
 
             // unigram
             toFeature(set, offsets, t);
@@ -356,6 +382,9 @@ public class NBSVM
         extractCharGrams(set, offsets, instance.text);
 
         extractWordGrams(set, offsets, instance.text);
+
+
+
         Collections.sort(offsets, new Comparator<Offset>()
         {
             @Override
@@ -371,6 +400,13 @@ public class NBSVM
         {
             fv.add(offset);
         }
+
+        if (useNBFeature)
+        {
+            double nbFeature = naiveBayes(fv, 0.5);
+            fv.add(new Offset(0, nbFeature));
+        }
+        fv.getX().organize();
 
         return fv;
 
@@ -412,6 +448,15 @@ public class NBSVM
         ftable.put(idx, x + 1L);
     }
 
+    double naiveBayes(FeatureVector fv, double prior)
+    {
+        double acc = prior;
+        for (Offset offset : fv.getNonZeroOffsets())
+        {
+            acc += offset.value;
+        }
+        return acc;
+    }
 
     /**
      * Classify an instance and return the score.
@@ -425,11 +470,7 @@ public class NBSVM
     public double classify(Model model, Instance instance)
     {
         FeatureVector fv = transform(instance);
-        double acc = Math.log(numPositiveTrainingExamples / (double) numNegativeTrainingExamples);
-        for (Offset offset : fv.getNonZeroOffsets())
-        {
-            acc += offset.value;
-        }
+        double acc = beta < 1 ? naiveBayes(fv, Math.log(numPositiveTrainingExamples / (double) numNegativeTrainingExamples)): 0;
         double score = model.predict(fv);
 
         score = beta * score + (1 - beta)*acc;
@@ -485,6 +526,7 @@ public class NBSVM
 
         }
 
+        log.info("Feature extraction from corpus completed.  Beginning lexicon generation");
         lexicon = new HashMap<Integer, Double>();
         Set<Integer> words = new HashSet<Integer>(ftable0.keySet());
         int uniqueWordsF0 = words.size();
@@ -506,6 +548,19 @@ public class NBSVM
 
     }
 
+    enum LossType {LOG, LR, HINGE }
+
+    public static Loss lossFor(String loss)
+    {
+        LossType lossType = LossType.valueOf(loss.toUpperCase());
+        log.info("Using " + lossType.toString() + " loss function");
+        if (lossType == LossType.LR || lossType == LossType.LOG)
+        {
+            return new LogLoss();
+        }
+        return new HingeLoss();
+    }
+
     public static class Params
     {
 
@@ -522,7 +577,7 @@ public class NBSVM
         public String model;
 
         @Parameter(description = "Loss function", names = {"--loss", "-l"})
-        public String loss = "hinge";
+        public String loss = LossType.HINGE.toString();
 
         @Parameter(description = "lambda", names = {"--lambda", "-lambda"})
         public Double lambda = 1e-5;
@@ -560,6 +615,11 @@ public class NBSVM
         @Parameter(description = "Minimum sentence length", names = {"--min-sent"})
         public Integer minSentenceLength = 0;
 
+        @Parameter(description = "Lower case tokens", names = "--lower")
+        public Boolean lowerCase = false;
+
+        @Parameter(description = "Use NB parameter", names = "--nbfeat")
+        public Boolean useNBFeature = false;
     }
 
     /**
@@ -670,7 +730,9 @@ public class NBSVM
             nbsvm.setCharNGramWidth(params.charNgrams);
             nbsvm.setEta0(params.eta0);
             nbsvm.setBeta(params.beta);
-            nbsvm.setLoss((params.loss.equals("lr") || params.loss.equals("log")) ? new LogLoss() : new HingeLoss());
+            nbsvm.setLowerCase(params.lowerCase);
+            nbsvm.setUseNBFeature(params.useNBFeature);
+            nbsvm.setLoss(lossFor(params.loss));
             nbsvm.setLearningMethod(params.method);
 
             if (params.ngrams == 0 && params.charNgrams == 0)
