@@ -22,6 +22,24 @@ using --cgram values > 0.  Smoothing on the generative features is controlled wi
 A whole host of other parameters are available. -- see the usage for an exhaustive list -- everything is tunable.
 Adagrad is currently optional for optimization using --method adagrad
 
+## Unique features
+
+This code implements several features that, as far as I know, are unique among NBSVM implementations.  Here are unique features of nbsvm-xl
+
+  - Scales to huge datasets with stable memory footprint and fast processing times
+  - "Long distance" lexicon support
+    - Use a different lexicon to create the generative feature values. Works best with a large corpus correlated with truth, but not actual truth, in addition to a small ground truth training set. In this case, the ground truth may be too small to get good MLEs for the generative features.  When this method improves performance over just ground truth, it also typically will produce superior performance to just using the correlated dataset as ground truth.
+
+  - Supports character ngrams
+    - Useful for processing datasets like Twitter, where words can be part of hashtags, mentions or otherwise convoluted, or where morphology is important
+
+  - Uses feature hashing 
+
+  - Supports NB smoothing, as in the original paper.  Some other implementations do as well, but the most widely used implementation does not
+
+  - Supports generating an NB parameter that is added to the vector.  This occasionally improves performance
+
+## Details
 This code depends on my sgdtk Java library for its SVM/LR SGD implementations (https://github.com/dpressel/sgdtk).  A key feature is speed of training, even with large amounts of training data.  The ring buffer size options control how much processing may be done in-core.
 
 To build nbsvm-xl, first pull https://github.com/dpressel/sgdtk and do a maven install.  Then run the maven

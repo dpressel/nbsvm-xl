@@ -505,10 +505,16 @@ public class NBSVM
      * Build a generative feature (word likelihood/NB) lexicon from a corpus
      * @param corpus Training data
      * @param alpha Smoothing
+     * @param noNBSVM This strange attribute allows us to simply create a standard SVM, not NBSVM
+     *                In case you are trying to compare NBSVM against SVM, for example
      */
-    public void buildLexicon(Iterator<Instance> corpus, double alpha)
+    public void buildLexicon(Iterator<Instance> corpus, double alpha, boolean noNBSVM)
     {
 
+        if (noNBSVM)
+        {
+            log.info("Using regular SVM/LR");
+        }
         Map[] ftables = new Map[2];
         Map<Integer, Long> ftable0 = new HashMap<Integer, Long>();
         Map<Integer, Long> ftable1 = new HashMap<Integer, Long>();
@@ -528,16 +534,30 @@ public class NBSVM
 
         log.info("Feature extraction from corpus completed.  Beginning lexicon generation");
         lexicon = new HashMap<Integer, Double>();
+
+        // Words is going to contain all the words in our lexicon!
         Set<Integer> words = new HashSet<Integer>(ftable0.keySet());
         int uniqueWordsF0 = words.size();
         Set<Integer> wordsF1 = ftable1.keySet();
         int uniqueWordsF1 = wordsF1.size();
         words.addAll(wordsF1);
+
+
         hashWordsProcessed = words.size();
 
         double numTotalF0 = numTokens[0] + alpha * uniqueWordsF0;
         double numTotalF1 = numTokens[1] + alpha * uniqueWordsF1;
 
+        // You would only do this if you are exploiting this code to give you back and plain SVM/LR,
+        // usually because you want to compare NBSVM performance against the equivalent SVM
+        if (noNBSVM)
+        {
+            for (Integer word : words)
+            {
+                lexicon.put(word, 1.0);
+            }
+            return;
+        }
         for (Integer word : words)
         {
             double f0 = (CollectionsManip.getOrDefault(ftable0, word, 0L) + alpha)/numTotalF0;
@@ -564,6 +584,13 @@ public class NBSVM
     public static class Params
     {
 
+        // This code supports Long Distance lexicons.  As far as I know, there is no other implementation of NBSVM
+        // that allows this.  An example where this proves useful would be cases where you have a large corpus highly
+        // correlated with the true label, but is not fully supervised, and your normal traininig set, which is much
+        // smaller than you wanted.  In that case, you can use this option to pass the big corpus in, and the small one
+        // to learn the training activation.  This can significantly increase performance, as the wordstats on the small
+        // corpus will be sparse.  Interestingly, this approach often works better than just using the bigger corpus
+        // as training data -- also its much faster and more efficient
         @Parameter(description = "Lexicon corpus", names = {"--lex", "-lex"})
         public String lex;
 
@@ -576,6 +603,8 @@ public class NBSVM
         @Parameter(description = "Model to write out", names = {"--model", "-s"})
         public String model;
 
+        // Even though this defaults to HINGE, Mesnil et. al. showed that log loss often outperforms
+        // I have found this to also be the case on almost every dataset I've ever run
         @Parameter(description = "Loss function", names = {"--loss", "-l"})
         public String loss = LossType.HINGE.toString();
 
@@ -588,18 +617,25 @@ public class NBSVM
         @Parameter(description = "Number of epochs", names = {"--epochs", "-epochs"})
         public Integer epochs = 10;
 
+        // This parameter essentially tells this code how many training instances it may keep in memory at one time
+        // Normally, this code is fast enough that these buffer limits wont get hit
         @Parameter(description = "Ring buffer size", names = {"--bufsz"})
         public Integer bufferSz = 16384;
 
+        // This version of NBSVM is the only version Im aware of that uses feature hashing.  This parameter says
+        // how many bits to allocate for hashing.
         @Parameter(description = "Number of bits for feature hashing", names = {"--nbits"})
         public Integer nbits = 24;
 
         @Parameter(description = "N-grams", names = {"--ngrams"})
         public Integer ngrams = 3;
 
+        // Adagrad sometimes performs better than SGD, though this really seems to depend on the set
         @Parameter(description = "Learning method (sgd|adagrad)", names = {"--method"})
         public String method = "sgd";
 
+        // This feature is unique to this version of NBSVM, and is extremely useful for processing datasets like Twitter
+        // where the words occur in unusual ways.  With a big enough corpus, the usefulness seems to fall off
         @Parameter(description = "Char N-grams", names = {"--cgrams"})
         public Integer charNgrams = 0;
 
@@ -618,8 +654,16 @@ public class NBSVM
         @Parameter(description = "Lower case tokens", names = "--lower")
         public Boolean lowerCase = false;
 
+        // This creates a global feature containing the Naive Bayes calculation (PMI score)
+        // This occasionally, helps but you could also just lower alpha if you want NB smoothing
         @Parameter(description = "Use NB parameter", names = "--nbfeat")
         public Boolean useNBFeature = false;
+
+        // This basically tells the code *not to do NBSVM*  You almost never want this
+        // it just exists so you can easily compare NBSVM performance against a plain SVM
+        // Its a convenience thing
+        @Parameter(description = "Use NB parameter", names = "--nonbsvm")
+        public Boolean noNBSVM = false;
     }
 
     /**
@@ -744,7 +788,7 @@ public class NBSVM
             Iterator<Instance> testIterator = new FileIterator(new File(params.eval), params.minSentenceLength);
 
             long lexStart = System.currentTimeMillis();
-            nbsvm.buildLexicon(lexIterator, params.alpha);
+            nbsvm.buildLexicon(lexIterator, params.alpha, params.noNBSVM);
 
 
             double lexSeconds = (System.currentTimeMillis() - lexStart) / 1000.0;
