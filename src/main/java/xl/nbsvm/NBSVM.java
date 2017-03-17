@@ -487,18 +487,55 @@ public class NBSVM
     public double eval(Model model, Iterator<Instance> iterator)
     {
 
-        int total = 0;
-        int correct = 0;
-        for (; iterator.hasNext(); ++total)
+        int tp = 0;
+        int tn = 0;
+        int fp = 0;
+        int fn = 0;
+        for (; iterator.hasNext(); )
         {
             Instance instance = iterator.next();
 
             int y = instance.label;
             double fx = classify(model, instance);
-            correct += (fx * y <= 0) ? 0 : 1;
+
+            if (fx * y <= 0)
+            {
+                if (y == 1)
+                {
+                    fn++;
+                }
+                else
+                {
+                    fp++;
+                }
+            }
+            else if (y == 1)
+            {
+                tp++;
+            }
+            else
+            {
+                tn++;
+            }
         }
+        int correct = tn + tp;
+        int total = tn + tp + fn + fp;
         System.out.println(correct + " / " + total);
+        System.out.println("TP: " + tp);
+        System.out.println("TN: " + tn);
+        System.out.println("FP: " + fp);
+        System.out.println("FN: " + fn);
+        System.out.println("F1: " + fbscore(tp, fp, fn, 1));
         return correct / (double) total;
+    }
+
+    double fbscore(int truePositives, int falsePositives, int falseNegatives, int b)
+    {
+        double b2 = b*b;
+
+        double num = (1 + b2) * truePositives;
+
+        return num / (num + b2 * falseNegatives + falsePositives);
     }
 
     /**
