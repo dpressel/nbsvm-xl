@@ -31,15 +31,7 @@ import java.util.*;
 public class NBSVM
 {
 
-
-    private String learningMethod;
-
-
     private static final Logger log = LoggerFactory.getLogger(NBSVM.class);
-
-
-
-
 
     public NBSVM()
     {

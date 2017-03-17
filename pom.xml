@@ -5,7 +5,7 @@
     <groupId>xl.nbsvm</groupId>
     <artifactId>nbsvm-xl</artifactId>
     <packaging>jar</packaging>
-    <version>0.0.1</version>
+    <version>0.1.1</version>
     <name>nbsvm-xl</name>
 
     <dependencies>

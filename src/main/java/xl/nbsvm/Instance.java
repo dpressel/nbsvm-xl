@@ -8,6 +8,6 @@ import java.util.List;
  */
 public class Instance
 {
-    int label;
-    List<String> text;
+    public int label;
+    public List<String> text;
 }

@@ -370,11 +370,10 @@ public class Classifier
      * Scores greater than 0 indicate a positive, less than 0 indicates a negative.  Beta is used to
      * determine NB weight.
      *
-     * @param model The linear model
      * @param instance The training instance
      * @return A score, with less than 0 indicating a negative
      */
-    public double classify(Model model, Instance instance)
+    public double classify(Instance instance)
     {
         FeatureVector fv = transform(instance);
         double acc = beta < 1 ? naiveBayes(fv, Math.log(numPositiveTrainingExamples / (double) numNegativeTrainingExamples)): 0;
@@ -402,7 +401,7 @@ public class Classifier
             Instance instance = iterator.next();
 
             int y = instance.label;
-            double fx = classify(model, instance);
+            double fx = classify(instance);
 
             if (fx * y <= 0)
             {
