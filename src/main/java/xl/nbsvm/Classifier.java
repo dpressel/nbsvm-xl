@@ -376,7 +376,17 @@ public class Classifier
     public double classify(Instance instance)
     {
         FeatureVector fv = transform(instance);
-        double acc = beta < 1 ? naiveBayes(fv, Math.log(numPositiveTrainingExamples / (double) numNegativeTrainingExamples)): 0;
+
+        double acc = 0;
+        if (beta < 1)
+        {
+            double prior = 0.5;
+            if (numPositiveTrainingExamples > 0 && numNegativeTrainingExamples > 0)
+            {
+                prior = numPositiveTrainingExamples / (double) numNegativeTrainingExamples;
+            }
+            acc = naiveBayes(fv, Math.log(prior));
+        }
         double score = model.predict(fv);
 
         score = beta * score + (1 - beta)*acc;
@@ -523,5 +533,7 @@ public class Classifier
         String lexiconOutput = modelName + ".lex";
         ObjectMapper objectMapper = new ObjectMapper();
         lexicon = objectMapper.readValue(new File(lexiconOutput), Map.class);
+        model = new LinearModel((int)Math.pow(2, nbits));
+        model.load(new File(modelName));
     }
 }
