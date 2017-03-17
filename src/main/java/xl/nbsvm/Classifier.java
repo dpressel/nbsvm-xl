@@ -1,5 +1,6 @@
 package xl.nbsvm;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.sgdtk.*;
 import org.sgdtk.exec.OverlappedTrainingRunner;
@@ -532,7 +533,9 @@ public class Classifier
     {
         String lexiconOutput = modelName + ".lex";
         ObjectMapper objectMapper = new ObjectMapper();
-        lexicon = objectMapper.readValue(new File(lexiconOutput), Map.class);
+        lexicon = objectMapper.readValue(new File(lexiconOutput), new TypeReference<Map<Integer, Double>>()
+        {
+        });
         model = new LinearModel((int)Math.pow(2, nbits));
         model.load(new File(modelName));
     }
